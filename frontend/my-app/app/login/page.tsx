@@ -81,7 +81,9 @@ export default function Login() {
     localStorage.setItem("alumniId", String(user.id));
     localStorage.setItem("alumniName", `${user.firstName} ${user.lastName}`);
     localStorage.setItem("isAdmin", String(user.isAdmin));
-    router.push(user.isAdmin ? "/admin" : "/profile");
+    // e.g. /login?next=/connections when coming from a connection-request email
+    const next = new URLSearchParams(window.location.search).get("next");
+    router.push(next && next.startsWith("/") && !next.startsWith("//") ? next : "/home");
   };
 
   const handleCredentialsSubmit = async (e: React.FormEvent) => {
@@ -192,9 +194,9 @@ export default function Login() {
 
   if (step === "mfa") {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-white px-4 py-10">
+      <main className="flex-1 flex items-center justify-center bg-white px-4 py-10">
         <div className="w-full max-w-md">
-          <h1 className="text-3xl font-bold text-center mb-4 text-gray-900">
+          <h1 className="text-3xl font-bold text-center mb-4 text-maroon-700">
             Enter Your Code
           </h1>
           <p className="text-lg text-gray-700 text-center mb-8">
@@ -224,7 +226,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full text-xl font-semibold bg-blue-700 text-white rounded-md py-3 hover:bg-blue-800 disabled:opacity-60"
+              className="w-full text-xl font-semibold bg-maroon-700 text-white rounded-md py-3 hover:bg-maroon-800 disabled:opacity-60"
             >
               {submitting ? "Checking..." : "Log In"}
             </button>
@@ -237,7 +239,7 @@ export default function Login() {
                 setCode("");
                 setError(null);
               }}
-              className="text-blue-700 underline font-medium"
+              className="text-maroon-700 underline font-medium"
             >
               Start Over
             </button>
@@ -248,9 +250,9 @@ export default function Login() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-white px-4 py-10">
+    <main className="flex-1 flex items-center justify-center bg-white px-4 py-10">
       <div className="w-full max-w-md">
-        <h1 className="text-3xl font-bold text-center mb-8 text-gray-900">
+        <h1 className="text-3xl font-bold text-center mb-8 text-maroon-700">
           Log In
         </h1>
 
@@ -325,7 +327,7 @@ export default function Login() {
                     type="button"
                     onClick={handleResend}
                     disabled={resendStatus === "sending"}
-                    className="text-lg text-blue-700 underline font-medium disabled:opacity-60 disabled:no-underline"
+                    className="text-lg text-maroon-700 underline font-medium disabled:opacity-60 disabled:no-underline"
                   >
                     {resendStatus === "sending"
                       ? "Sending..."
@@ -344,7 +346,7 @@ export default function Login() {
           <button
             type="submit"
             disabled={submitting || isLimited}
-            className="w-full text-xl font-semibold bg-blue-700 text-white rounded-md py-3 hover:bg-blue-800 disabled:opacity-60"
+            className="w-full text-xl font-semibold bg-maroon-700 text-white rounded-md py-3 hover:bg-maroon-800 disabled:opacity-60"
           >
             {submitting ? "Checking..." : "Continue"}
           </button>
@@ -353,7 +355,7 @@ export default function Login() {
         <p className="text-center text-lg mt-4 text-gray-700">
           <a
             href="/forgot-password"
-            className="text-blue-700 underline font-medium"
+            className="text-maroon-700 underline font-medium"
           >
             Forgot your password?
           </a>
@@ -361,7 +363,7 @@ export default function Login() {
 
         <p className="text-center text-lg mt-4 text-gray-700">
           Don't have an account?{" "}
-          <a href="/signup" className="text-blue-700 underline font-medium">
+          <a href="/signup" className="text-maroon-700 underline font-medium">
             Sign Up
           </a>
         </p>

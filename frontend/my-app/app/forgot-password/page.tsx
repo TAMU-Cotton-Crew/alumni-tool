@@ -29,9 +29,9 @@ export default function ForgotPasswordPage() {
   };
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-white px-4 py-10">
+    <main className="flex-1 flex items-center justify-center bg-white px-4 py-10">
       <div className="w-full max-w-md">
-        <h1 className="text-3xl font-bold text-center mb-8 text-gray-900">
+        <h1 className="text-3xl font-bold text-center mb-8 text-maroon-700">
           Forgot Password
         </h1>
 
@@ -54,7 +54,7 @@ export default function ForgotPasswordPage() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full text-xl font-semibold bg-blue-700 text-white rounded-md py-3 hover:bg-blue-800 disabled:opacity-60"
+              className="w-full text-xl font-semibold bg-maroon-700 text-white rounded-md py-3 hover:bg-maroon-800 disabled:opacity-60"
             >
               {submitting ? "Sending..." : "Send Reset Link"}
             </button>
@@ -62,7 +62,7 @@ export default function ForgotPasswordPage() {
         )}
 
         <p className="text-center text-lg mt-6 text-gray-700">
-          <a href="/login" className="text-blue-700 underline font-medium">
+          <a href="/login" className="text-maroon-700 underline font-medium">
             Back to Log In
           </a>
         </p>

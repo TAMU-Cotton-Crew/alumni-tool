@@ -51,7 +51,7 @@ function ResetPasswordForm() {
         <p className="text-xl text-green-700 mb-6">{message}</p>
         <a
           href="/login"
-          className="inline-block text-xl font-semibold bg-blue-700 text-white rounded-md py-3 px-8 hover:bg-blue-800"
+          className="inline-block text-xl font-semibold bg-maroon-700 text-white rounded-md py-3 px-8 hover:bg-maroon-800"
         >
           Go to Log In
         </a>
@@ -89,7 +89,7 @@ function ResetPasswordForm() {
       <button
         type="submit"
         disabled={submitting}
-        className="w-full text-xl font-semibold bg-blue-700 text-white rounded-md py-3 hover:bg-blue-800 disabled:opacity-60"
+        className="w-full text-xl font-semibold bg-maroon-700 text-white rounded-md py-3 hover:bg-maroon-800 disabled:opacity-60"
       >
         {submitting ? "Saving..." : "Set New Password"}
       </button>
@@ -99,9 +99,9 @@ function ResetPasswordForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <main className="min-h-screen flex items-center justify-center bg-white px-4 py-10">
+    <main className="flex-1 flex items-center justify-center bg-white px-4 py-10">
       <div className="w-full max-w-md">
-        <h1 className="text-3xl font-bold text-center mb-8 text-gray-900">
+        <h1 className="text-3xl font-bold text-center mb-8 text-maroon-700">
           Reset Password
         </h1>
         <Suspense

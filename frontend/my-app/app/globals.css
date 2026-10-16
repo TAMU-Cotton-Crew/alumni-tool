@@ -1,5 +1,6 @@
 @import "tailwindcss";
 
+/* Texas A&M colors: maroon #500000 and white */
 :root {
   --background: #ffffff;
   --foreground: #171717;
@@ -12,15 +13,36 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+/* Maroon scale: use as bg-maroon-700, text-maroon-700, hover:bg-maroon-800, etc. */
+@theme {
+  --color-maroon-50: #fbf3f3;
+  --color-maroon-100: #f5e1e1;
+  --color-maroon-200: #e8bcbc;
+  --color-maroon-300: #d48b8b;
+  --color-maroon-400: #b65656;
+  --color-maroon-500: #8f2b2b;
+  --color-maroon-600: #6e1414;
+  --color-maroon-700: #500000;
+  --color-maroon-800: #3c0000;
+  --color-maroon-900: #2a0000;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Maroon focus ring on form fields and maroon checkboxes */
+input:focus,
+select:focus,
+textarea:focus {
+  outline: 2px solid #500000;
+  outline-offset: 1px;
+  border-color: #500000;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  accent-color: #500000;
 }

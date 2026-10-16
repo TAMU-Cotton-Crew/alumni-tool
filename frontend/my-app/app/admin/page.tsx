@@ -115,7 +115,7 @@ export default function AdminPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-white">
+      <main className="flex-1 flex items-center justify-center bg-white">
         <p className="text-xl text-gray-700">Loading directory...</p>
       </main>
     );
@@ -123,19 +123,22 @@ export default function AdminPage() {
 
   if (error) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-white">
+      <main className="flex-1 flex items-center justify-center bg-white">
         <p className="text-xl text-red-600">{error}</p>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-white px-6 py-10">
+    <main className="flex-1 bg-white px-6 py-10">
+      <a href="/home" className="inline-block mb-4 text-maroon-700 underline font-medium">
+        ← Back to menu
+      </a>
       <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-900">Admin Directory</h1>
+        <h1 className="text-3xl font-bold text-maroon-700">Admin Directory</h1>
         <button
           onClick={handleLogout}
-          className="text-lg font-medium text-blue-700 underline"
+          className="text-lg font-medium text-maroon-700 underline"
         >
           Log Out
         </button>

@@ -8,6 +8,8 @@ var {
   sendPasswordResetEmail,
   sendMfaCodeEmail,
   isEmailRateLimitError,
+  sendConnectionIntroEmail,
+  sendProposalEmails,
 } = require("./mailer");
 
 const SALT_ROUNDS = 12;
@@ -804,6 +806,306 @@ router.delete("/alumni/:id/degrees/:degreeId", async (req, res) => {
     res.json({ success: true });
   } catch (err) {
     console.error("Delete degree error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ---------- BAEN Connect Portal ----------
+// Alumni who opted in ("reconnect_baen") and verified their email receive proposals.
+const PROPOSAL_MAX_WORDS = 300;
+const PROPOSALS_PER_DAY = 1;
+
+// Special "location of interest" choices. These must match ANY_LOCATION in
+// frontend/my-app/app/portal/page.tsx exactly. Any other value is a US state name.
+const LOCATION_ANYWHERE = "Open to any location";
+const LOCATION_OUTSIDE_US = "Open to locations outside the US";
+
+// Opted-in, verified alumni (never the sender), narrowed by location:
+// - a US state: alumni whose work state is that state
+// - "outside the US": alumni whose work country is set and isn't the US
+// - "any location" or no location: everyone opted in
+async function getProposalRecipients(excludeId, location) {
+  const params = [excludeId];
+  let locationFilter = "";
+  if (location === LOCATION_OUTSIDE_US) {
+    locationFilter = `AND COALESCE(work_country, '') NOT IN ('', 'United States')`;
+  } else if (location && location !== LOCATION_ANYWHERE) {
+    params.push(location);
+    locationFilter = `AND work_country = 'United States' AND LOWER(work_state) = LOWER($2)`;
+  }
+  const result = await db.query(
+    `SELECT id, email FROM alumni
+     WHERE reconnect_baen = TRUE
+       AND classification IN ('Alumni', 'Friend of BAEN')
+       AND email_verified = TRUE
+       AND id <> $1
+       ${locationFilter}`,
+    params,
+  );
+  return result.rows; // [{ id, email }]
+}
+
+// How many alumni a proposal would reach. With ?state=..., counts only
+// alumni matching that location (shown live under the Location field).
+router.get("/portal/recipient-count", async (req, res) => {
+  const { requesterId, state } = req.query;
+  if (!requesterId) {
+    return res.status(400).json({ error: "Missing requester." });
+  }
+  try {
+    const location = typeof state === "string" ? state.trim() : "";
+    const recipients = await getProposalRecipients(requesterId, location);
+    res.json({ count: recipients.length });
+  } catch (err) {
+    console.error("Recipient count error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.post("/portal/proposals", async (req, res) => {
+  const { alumniId, interests, state, body } = req.body;
+
+  // ---- Validate input ----
+  if (!alumniId) {
+    return res.status(400).json({ error: "Please log in again." });
+  }
+  if (
+    !Array.isArray(interests) ||
+    interests.length === 0 ||
+    !interests.every((i) => INDUSTRY_CATEGORIES.includes(i))
+  ) {
+    return res
+      .status(400)
+      .json({ error: "Please choose at least one area of interest." });
+  }
+  const cleanState = typeof state === "string" ? state.trim() : "";
+  if (!cleanState || cleanState.length > 60) {
+    return res
+      .status(400)
+      .json({ error: "Please choose a location of interest." });
+  }
+  const cleanBody = typeof body === "string" ? body.trim() : "";
+  const wordCount = cleanBody ? cleanBody.split(/\s+/).length : 0;
+  if (wordCount < 10) {
+    return res
+      .status(400)
+      .json({ error: "Please write a proposal of at least 10 words." });
+  }
+  if (wordCount > PROPOSAL_MAX_WORDS || cleanBody.length > 4000) {
+    return res.status(400).json({
+      error: `Please keep your proposal under ${PROPOSAL_MAX_WORDS} words.`,
+    });
+  }
+
+  try {
+    const senderResult = await db.query(
+      `SELECT id, first_name, last_name, email, email_verified FROM alumni WHERE id = $1`,
+      [alumniId],
+    );
+    if (senderResult.rows.length === 0) {
+      return res.status(404).json({ error: "Account not found." });
+    }
+    const sender = senderResult.rows[0];
+    if (!sender.email_verified) {
+      return res
+        .status(403)
+        .json({ error: "Please verify your email before sending proposals." });
+    }
+
+    // ---- Limit how often one person can email everyone ----
+    const recent = await db.query(
+      `SELECT COUNT(*)::int AS n FROM connections
+       WHERE alumni_id = $1 AND created_at > NOW() - INTERVAL '24 hours'`,
+      [sender.id],
+    );
+    if (recent.rows[0].n >= PROPOSALS_PER_DAY) {
+      return res.status(429).json({
+        error:
+          "You can send one proposal every 24 hours. Please try again tomorrow.",
+      });
+    }
+
+    // Only alumni in the chosen location receive the proposal
+    const recipients = await getProposalRecipients(sender.id, cleanState);
+    if (recipients.length === 0) {
+      return res.status(400).json({
+        error:
+          "There are no alumni available to connect with in that location yet. Try another location.",
+      });
+    }
+
+    // Save the request first so its id can go in the email link
+    const created = await db.query(
+      `INSERT INTO connections (alumni_id, interests, state, body, recipient_count)
+       VALUES ($1, $2, $3, $4, 0) RETURNING id`,
+      [sender.id, interests, cleanState, cleanBody],
+    );
+    const connectionId = created.rows[0].id;
+
+    let outcome;
+    try {
+      outcome = await sendProposalEmails({
+        body: cleanBody,
+        link: `${FRONTEND_URL}/connections`,
+        recipients: recipients.map((r) => r.email),
+      });
+    } catch (err) {
+      await db.query(`DELETE FROM connections WHERE id = $1`, [connectionId]);
+      if (isEmailRateLimitError(err)) {
+        return sendRateLimited(
+          res,
+          "Emails have been temporarily limited for security reasons. Please try again in an hour.",
+        );
+      }
+      throw err;
+    }
+
+    if (outcome.sent === 0) {
+      // Nothing went out: remove the record so it doesn't use up today's request
+      await db.query(`DELETE FROM connections WHERE id = $1`, [connectionId]);
+      return sendRateLimited(
+        res,
+        "Emails have been temporarily limited for security reasons. Please try again in an hour.",
+      );
+    }
+
+    // Batches go out in order, so the first `sent` recipients got the email.
+    // Only they can see and accept this request.
+    const reached = recipients.slice(0, outcome.sent).map((r) => r.id);
+    await db.query(
+      `INSERT INTO connection_recipients (connection_id, alumni_id)
+       SELECT $1, UNNEST($2::int[])`,
+      [connectionId, reached],
+    );
+    await db.query(`UPDATE connections SET recipient_count = $1 WHERE id = $2`, [
+      outcome.sent,
+      connectionId,
+    ]);
+
+    res.json({
+      sent: outcome.sent,
+      total: recipients.length,
+      partial: outcome.sent < recipients.length,
+    });
+  } catch (err) {
+    console.error("Proposal send error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+// ---------- BAEN Connections Proposals (alumni inbox) ----------
+// Alumni only see the request text, interests and location: never who sent it
+// until they accept.
+router.get("/connections/inbox", async (req, res) => {
+  const { alumniId } = req.query;
+  if (!alumniId) {
+    return res.status(400).json({ error: "Please log in again." });
+  }
+  try {
+    const result = await db.query(
+      `SELECT c.id, c.body, c.interests, c.state, c.created_at,
+              r.status, r.responded_at
+       FROM connection_recipients r
+       JOIN connections c ON c.id = r.connection_id
+       WHERE r.alumni_id = $1
+       ORDER BY (r.status = 'pending') DESC, c.created_at DESC`,
+      [alumniId],
+    );
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Connections inbox error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.post("/connections/:connectionId/accept", async (req, res) => {
+  const { connectionId } = req.params;
+  const { alumniId } = req.body;
+  if (!alumniId) {
+    return res.status(400).json({ error: "Please log in again." });
+  }
+
+  try {
+    // Claim the request (only works once, and only for alumni it was sent to)
+    const claimed = await db.query(
+      `UPDATE connection_recipients
+       SET status = 'accepted', responded_at = NOW()
+       WHERE connection_id = $1 AND alumni_id = $2 AND status = 'pending'
+       RETURNING id`,
+      [connectionId, alumniId],
+    );
+    if (claimed.rows.length === 0) {
+      return res.status(409).json({
+        error: "This request is no longer available, or you've already responded.",
+      });
+    }
+
+    const info = await db.query(
+      `SELECT c.body,
+              s.first_name AS s_first, s.last_name AS s_last, s.email AS s_email,
+              a.first_name AS a_first, a.last_name AS a_last, a.email AS a_email,
+              a.classification AS a_class
+       FROM connections c
+       JOIN alumni s ON s.id = c.alumni_id
+       JOIN alumni a ON a.id = $2
+       WHERE c.id = $1`,
+      [connectionId, alumniId],
+    );
+    const row = info.rows[0];
+
+    try {
+      await sendConnectionIntroEmail({
+        studentEmail: row.s_email,
+        studentName: `${row.s_first} ${row.s_last}`.trim(),
+        alumniEmail: row.a_email,
+        alumniName: `${row.a_first} ${row.a_last}`.trim(),
+        alumniRole: row.a_class === "Friend of BAEN" ? "a Friend of BAEN" : "a BAEN alum",
+        body: row.body,
+      });
+    } catch (err) {
+      // Email didn't go out: put the request back so they can try again
+      await db.query(
+        `UPDATE connection_recipients SET status = 'pending', responded_at = NULL WHERE id = $1`,
+        [claimed.rows[0].id],
+      );
+      if (isEmailRateLimitError(err)) {
+        return sendRateLimited(
+          res,
+          "Emails have been temporarily limited for security reasons. Please try connecting again in an hour.",
+        );
+      }
+      throw err;
+    }
+
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Accept connection error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.post("/connections/:connectionId/decline", async (req, res) => {
+  const { connectionId } = req.params;
+  const { alumniId } = req.body;
+  if (!alumniId) {
+    return res.status(400).json({ error: "Please log in again." });
+  }
+  try {
+    const result = await db.query(
+      `UPDATE connection_recipients
+       SET status = 'declined', responded_at = NOW()
+       WHERE connection_id = $1 AND alumni_id = $2 AND status = 'pending'
+       RETURNING id`,
+      [connectionId, alumniId],
+    );
+    if (result.rows.length === 0) {
+      return res.status(409).json({
+        error: "This request is no longer available, or you've already responded.",
+      });
+    }
+    res.json({ success: true });
+  } catch (err) {
+    console.error("Decline connection error:", err);
     res.status(500).json({ error: "Internal Server Error" });
   }
 });

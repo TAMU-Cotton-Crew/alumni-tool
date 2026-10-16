@@ -38,7 +38,7 @@ function VerifyEmailContent() {
 
   return (
     <div className="w-full max-w-md text-center">
-      <h1 className="text-3xl font-bold text-gray-900 mb-4">
+      <h1 className="text-3xl font-bold text-maroon-700 mb-4">
         Email Verification
       </h1>
 
@@ -51,7 +51,7 @@ function VerifyEmailContent() {
           <p className="text-xl text-green-700 mb-6">{message}</p>
           <a
             href="/login"
-            className="inline-block text-xl font-semibold bg-blue-700 text-white rounded-md py-3 px-8 hover:bg-blue-800"
+            className="inline-block text-xl font-semibold bg-maroon-700 text-white rounded-md py-3 px-8 hover:bg-maroon-800"
           >
             Go to Log In
           </a>
@@ -65,7 +65,7 @@ function VerifyEmailContent() {
 
 export default function VerifyEmailPage() {
   return (
-    <main className="min-h-screen flex items-center justify-center bg-white px-4 py-10">
+    <main className="flex-1 flex items-center justify-center bg-white px-4 py-10">
       <Suspense
         fallback={
           <p className="text-xl text-gray-700">Loading verification...</p>

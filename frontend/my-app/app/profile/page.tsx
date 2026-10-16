@@ -4,57 +4,10 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchJson } from "@/lib/api";
 import { TAMU_DEGREES, DEGREE_TYPES } from "@/lib/degrees";
+import { INDUSTRY_CATEGORIES } from "@/lib/industries";
 import { Country, State, City } from "country-state-city";
 
 /* Look to expand Industry List, There also exists a column for work_state and I've added one for work_zipcode */
-
-const INDUSTRY_CATEGORIES = [
-  "Power Machinery",
-  "Instrumentation and Controls",
-  "Air Quality",
-  "Bioenergy",
-  "Food Engineering",
-  "Water Availability and Quality",
-  "Water Conservation",
-  "Wastewater",
-  "Structures",
-  "Data Analytics",
-  "GIS",
-  "Management",
-  "Engineering Technician",
-  "Sales",
-  "Technical Sales",
-  "Irrigation Systems Manager",
-  "Production Supervisor",
-  "Logistics",
-  "Project Administrator",
-  "Surveying",
-  "Staff Consultant",
-  "Technical Support Specialist",
-  "Military",
-  "Teacher",
-  "Educator",
-  "Safety Training",
-  "Safety Manager",
-  "Safety",
-  "Government",
-  "Farm Manager",
-  "Ranch Manager",
-  "Rain Water Harvesting",
-  "Construction",
-  "Consulting",
-  "Installer",
-  "Electrician",
-  "Energy Management",
-  "Resource Management",
-  "Land Development",
-  "Permitting",
-  "Environmental Consulting",
-  "Energy",
-  "Farmer/Rancher",
-  "Entrepreneur",
-];
-
 
 /* Consider Degree Programs Instead and then Other */
 
@@ -359,18 +312,21 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-white">
+      <main className="flex-1 flex items-center justify-center bg-white">
         <p className="text-xl text-gray-700">Loading your profile...</p>
       </main>
     );
   }
 
-  const isAlumni = form.classification === "Alumni";
+  const isAlumni = ["Alumni", "Friend of BAEN"].includes(form.classification);
 
   return (
-    <main className="min-h-screen bg-white px-4 py-10">
+    <main className="flex-1 bg-white px-4 py-10">
+      <a href="/home" className="inline-block mb-4 text-maroon-700 underline font-medium">
+        ← Back to menu
+      </a>
       <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">My Profile</h1>
+        <h1 className="text-3xl font-bold text-maroon-700">My Profile</h1>
         <p className="text-gray-600 text-lg mt-2">
           Keep your professional information updated! All fields are optional.
         </p>
@@ -400,13 +356,14 @@ export default function ProfilePage() {
           >
             <option value="Student">Student</option>
             <option value="Alumni">Alumni</option>
+            <option value="Friend of BAEN">Friend of BAEN</option> {/* Treated like Alumni for the opportunities section and BAEN Connect */}
           </select>
         </div>
 
         <button
           onClick={(e) => handleSave(e, "Status")}
           disabled={saving === "Status"}
-          className="flex justify-start gap-2 mt-4 bg-blue-700 text-white px-6 py-3 rounded-md hover:bg-blue-800 disabled:opacity-60"
+          className="flex justify-start gap-2 mt-4 bg-maroon-700 text-white px-6 py-3 rounded-md hover:bg-maroon-800 disabled:opacity-60"
         >
           {saving === "Status" ? "Saving..." : "Save Changes"}
         </button>
@@ -457,7 +414,7 @@ export default function ProfilePage() {
               savingBackup ||
               backupEmail.trim().toLowerCase() === savedBackupEmail
             }
-            className="bg-blue-700 text-white px-6 py-3 rounded-md hover:bg-blue-800 disabled:opacity-60"
+            className="bg-maroon-700 text-white px-6 py-3 rounded-md hover:bg-maroon-800 disabled:opacity-60"
           >
             {savingBackup ? "Saving..." : "Save Backup Email"}
           </button>
@@ -785,7 +742,7 @@ export default function ProfilePage() {
           <button
             onClick={(e) => handleSave(e, "Employment")}
             disabled={saving === "Employment"}
-            className="flex w-fit justify-start gap-2 mt-4 bg-blue-700 text-white px-6 py-3 rounded-md hover:bg-blue-800 disabled:opacity-60"
+            className="flex w-fit justify-start gap-2 mt-4 bg-maroon-700 text-white px-6 py-3 rounded-md hover:bg-maroon-800 disabled:opacity-60"
           >
             {saving === "Employment" ? "Saving..." : "Save Changes"}
           </button>
@@ -816,7 +773,7 @@ export default function ProfilePage() {
           <button
             onClick={(e) => handleSave(e, "Networking")}
             disabled={saving === "Networking"}
-            className="flex justify-start gap-2 mt-4 bg-blue-700 text-white px-6 py-3 rounded-md hover:bg-blue-800 disabled:opacity-60"
+            className="flex justify-start gap-2 mt-4 bg-maroon-700 text-white px-6 py-3 rounded-md hover:bg-maroon-800 disabled:opacity-60"
           >
             {saving === "Networking" ? "Saving..." : "Save Changes"}
           </button>
@@ -966,7 +923,7 @@ export default function ProfilePage() {
         <button
           onClick={(e) => handleSave(e, "Engagement")}
           disabled={saving === "Engagement"}
-          className="flex justify-start mt-4 gap-2 bg-blue-700 text-white px-6 py-3 rounded-md hover:bg-blue-800 disabled:opacity-60"
+          className="flex justify-start mt-4 gap-2 bg-maroon-700 text-white px-6 py-3 rounded-md hover:bg-maroon-800 disabled:opacity-60"
         >
           {saving === "Engagement" ? "Saving..." : "Save Changes"}
         </button>

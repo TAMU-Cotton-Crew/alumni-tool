@@ -58,9 +58,9 @@ export default function SignUp() {
 
   if (signupComplete && emailLimited) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-white px-4 py-10">
+      <main className="flex-1 flex items-center justify-center bg-white px-4 py-10">
         <div className="w-full max-w-md text-center">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">
+          <h1 className="text-3xl font-bold text-maroon-700 mb-4">
             Account Created
           </h1>
           <div
@@ -91,9 +91,9 @@ export default function SignUp() {
 
   if (signupComplete) {
     return (
-      <main className="min-h-screen flex items-center justify-center bg-white px-4 py-10">
+      <main className="flex-1 flex items-center justify-center bg-white px-4 py-10">
         <div className="w-full max-w-md text-center">
-          <h1 className="text-3xl font-bold text-gray-900 mb-4">
+          <h1 className="text-3xl font-bold text-maroon-700 mb-4">
             Check Your Email
           </h1>
           <p className="text-xl text-gray-700">
@@ -106,9 +106,9 @@ export default function SignUp() {
   }
 
   return (
-    <main className="min-h-screen flex items-center justify-center bg-white px-4 py-10">
+    <main className="flex-1 flex items-center justify-center bg-white px-4 py-10">
       <div className="w-full max-w-md">
-        <h1 className="text-3xl font-bold text-center mb-8 text-gray-900">
+        <h1 className="text-3xl font-bold text-center mb-8 text-maroon-700">
           Create Your Account
         </h1>
 
@@ -126,6 +126,7 @@ export default function SignUp() {
               <option value="Student">
                 Student
               </option>
+              <option value="Friend of BAEN">Friend of BAEN</option>
             </select>
           </div>
 
@@ -197,7 +198,7 @@ export default function SignUp() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full text-xl font-semibold bg-blue-700 text-white rounded-md py-3 mt-2 hover:bg-blue-800 disabled:opacity-60"
+            className="w-full text-xl font-semibold bg-maroon-700 text-white rounded-md py-3 mt-2 hover:bg-maroon-800 disabled:opacity-60"
           >
             {submitting ? "Creating Account..." : "Create Account"}
           </button>
@@ -205,7 +206,7 @@ export default function SignUp() {
 
         <p className="text-center text-lg mt-6 text-gray-700">
           Already have an account?{" "}
-          <a href="/login" className="text-blue-700 underline font-medium">
+          <a href="/login" className="text-maroon-700 underline font-medium">
             Log In
           </a>
         </p>

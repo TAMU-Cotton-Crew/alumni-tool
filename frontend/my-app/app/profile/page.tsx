@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import { fetchJson } from "@/lib/api";
 import { TAMU_DEGREES, DEGREE_TYPES } from "@/lib/degrees";
 import { INDUSTRY_CATEGORIES } from "@/lib/industries";
+import { NETWORKING_GOALS } from "@/lib/networking";
+import MultiSelectChecklist from "@/components/MultiSelectChecklist";
 import { Country, State, City } from "country-state-city";
 
 /* Look to expand Industry List, There also exists a column for work_state and I've added one for work_zipcode */
@@ -53,6 +55,11 @@ interface Profile {
   baen_fundraising: boolean;
   visit_department: boolean;
   bio: string | null;
+  interests: string[] | null;
+  networking_goals: string[] | null;
+  major: string | null;
+  hometown: string | null;
+  grad_year: string | null;
   degrees: Degree[];
 }
 
@@ -95,6 +102,11 @@ export default function ProfilePage() {
     baen_fundraising: false,
     visit_department: false,
     bio: "",
+    interests: [] as string[],
+    networking_goals: [] as string[],
+    major: "",
+    hometown: "",
+    grad_year: "",
   });
 
   const [degrees, setDegrees] = useState<Degree[]>([]);
@@ -155,6 +167,11 @@ export default function ProfilePage() {
           baen_fundraising: !!data.baen_fundraising,
           visit_department: !!data.visit_department,
           bio: blankIfNull(data.bio),
+          interests: data.interests ?? [],
+          networking_goals: data.networking_goals ?? [],
+          major: blankIfNull(data.major),
+          hometown: blankIfNull(data.hometown),
+          grad_year: blankIfNull(data.grad_year),
         });
         setDegrees(data.degrees);
         setMainEmail(data.email);
@@ -182,7 +199,7 @@ export default function ProfilePage() {
     loadProfile();
   }, []);
 
-  const handleChange = (field: string, value: string | boolean) => {
+  const handleChange = (field: string, value: string | boolean | string[]) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -319,6 +336,7 @@ export default function ProfilePage() {
   }
 
   const isAlumni = ["Alumni", "Friend of BAEN"].includes(form.classification);
+  const isStudent = form.classification === "Student";
 
   return (
     <main className="flex-1 bg-white px-4 py-10">
@@ -575,7 +593,80 @@ export default function ProfilePage() {
         </div>
       </section>
 
-      {/* Employment */}
+      {/* Student information (replaces Employment for students) */}
+      {isStudent && (
+        <section className="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-8">
+          <h2 className="text-2xl font-bold text-gray-900 mb-4">
+            Student Information
+          </h2>
+          <div className="flex flex-col gap-4">
+            <div>
+              <label className="block text-lg font-medium text-gray-800 mb-1">
+                Major
+              </label>
+              <input
+                type="text"
+                list="major-options"
+                value={form.major}
+                onChange={(e) => handleChange("major", e.target.value)}
+                maxLength={120}
+                className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
+                placeholder="e.g. Biological and Agricultural Engineering"
+              />
+              <datalist id="major-options">
+                {TAMU_DEGREES.filter((d) => d !== "Other").map((d) => (
+                  <option key={d} value={d.replace(/\s*\([^)]*\)$/, "")} />
+                ))}
+              </datalist>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-lg font-medium text-gray-800 mb-1">
+                  Expected Graduation Year
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={form.grad_year}
+                  onChange={(e) =>
+                    handleChange("grad_year", e.target.value.replace(/\D/g, "").slice(0, 4))
+                  }
+                  className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
+                  placeholder="e.g. 2027"
+                />
+              </div>
+              <div>
+                <label className="block text-lg font-medium text-gray-800 mb-1">
+                  Hometown
+                </label>
+                <input
+                  type="text"
+                  value={form.hometown}
+                  onChange={(e) => handleChange("hometown", e.target.value)}
+                  maxLength={120}
+                  className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
+                  placeholder="e.g. Bryan, TX"
+                />
+              </div>
+            </div>
+          </div>
+
+          <button
+            onClick={(e) => handleSave(e, "Student")}
+            disabled={saving === "Student"}
+            className="flex w-fit justify-start gap-2 mt-4 bg-maroon-700 text-white px-6 py-3 rounded-md hover:bg-maroon-800 disabled:opacity-60"
+          >
+            {saving === "Student" ? "Saving..." : "Save Changes"}
+          </button>
+          {savedSection === "Student" && (
+            <p className="text-green-700 font-medium mt-2">✓ Saved</p>
+          )}
+        </section>
+      )}
+
+      {/* Employment (alumni & friends) */}
+      {!isStudent && (
+        <>
       <section className="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-8">
         <h2 className="text-2xl font-bold text-gray-900 mb-4">
           Current Employment
@@ -752,6 +843,8 @@ export default function ProfilePage() {
           )}
         </div>
       </section>
+        </>
+      )}
 
       {/* Professional Networking */}
       <section className="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-8">
@@ -782,6 +875,47 @@ export default function ProfilePage() {
             <p className="text-green-700 font-medium mt-2">✓ Saved</p>
           )}
         </div>
+      </section>
+
+      {/* BAEN Connect: interests and networking goals */}
+      <section className="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-8">
+        <h2 className="text-2xl font-bold text-gray-900 mb-1">
+          Areas of Interest
+        </h2>
+        <p className="text-gray-600 mb-4">
+          Select all that apply. These help match your connection requests with
+          people who share your interests.
+        </p>
+        <MultiSelectChecklist
+          options={INDUSTRY_CATEGORIES}
+          selected={form.interests}
+          onChange={(next) => handleChange("interests", next)}
+          searchable
+          columns={3}
+        />
+
+        <h2 className="text-2xl font-bold text-gray-900 mt-8 mb-1">
+          What are you looking to gain from this network?
+        </h2>
+        <p className="text-gray-600 mb-4">Select all that apply.</p>
+        <MultiSelectChecklist
+          options={NETWORKING_GOALS}
+          selected={form.networking_goals}
+          onChange={(next) => handleChange("networking_goals", next)}
+          columns={2}
+        />
+
+
+        <button
+          onClick={(e) => handleSave(e, "Connect")}
+          disabled={saving === "Connect"}
+          className="flex w-fit justify-start gap-2 mt-4 bg-maroon-700 text-white px-6 py-3 rounded-md hover:bg-maroon-800 disabled:opacity-60"
+        >
+          {saving === "Connect" ? "Saving..." : "Save Changes"}
+        </button>
+        {savedSection === "Connect" && (
+          <p className="text-green-700 font-medium mt-2">✓ Saved</p>
+        )}
       </section>
 
       {/* Dynamic Section: Alumni Opportunities VS Student Career Options */}

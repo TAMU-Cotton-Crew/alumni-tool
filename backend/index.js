@@ -3,6 +3,7 @@ var crypto = require("crypto");
 var bcrypt = require("bcrypt");
 var router = express.Router();
 var db = require("./db");
+var { buildMessageOptions } = require("./messages");
 var {
   sendVerificationEmail,
   sendPasswordResetEmail,
@@ -61,6 +62,38 @@ const INDUSTRY_CATEGORIES = [
   "Farmer/Rancher",
   "Entrepreneur",
 ];
+
+// "What are you looking to gain from this network?" (multi-select).
+// Must match NETWORKING_GOALS in frontend/my-app/lib/networking.ts.
+const NETWORKING_GOALS = [
+  "Internship Opportunities",
+  "Full-Time Employment",
+  "Professional Networking",
+  "Mentorship/Career Advice",
+  "Industry Connections",
+  "Hiring or Recruiting",
+  "General Involvement",
+  "Student Organization Involvement",
+];
+
+// Shown in connection emails, e.g. "Alex Smith, a BAEN alum, accepted..."
+function roleLabel(classification) {
+  if (classification === "Friend of BAEN") return "a Friend of BAEN";
+  if (classification === "Student") return "a BAEN student";
+  return "a BAEN alum";
+}
+
+// Keep only allowed values from a multi-select; null means "not sent, keep as is"
+function cleanList(value, allowed) {
+  if (!Array.isArray(value)) return null;
+  return [...new Set(value.filter((v) => allowed.includes(v)))];
+}
+
+// Trim free text and cap its length; null means "not sent, keep as is"
+function cleanText(value, max) {
+  if (typeof value !== "string") return null;
+  return value.trim().slice(0, max);
+}
 
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || "")
   .split(",")
@@ -183,7 +216,8 @@ router.get("/alumni/:id", async (req, res) => {
               industry_category, work_city, work_state, work_country, work_zipcode, linkedin_url,
               seeking_internship, seeking_fulltime, seeking_grad_school, bio,
               hiring_employees, reconnect_baen, capstone_client, baen_activities,
-              baen_updates, baen_fundraising, visit_department, last_modified, backup_email
+              baen_updates, baen_fundraising, visit_department, last_modified, backup_email,
+              interests, networking_goals, major, hometown, grad_year
        FROM alumni WHERE id = $1`,
       [id],
     );
@@ -696,10 +730,21 @@ router.put("/alumni/:id", async (req, res) => {
     baen_updates,
     baen_fundraising,
     visit_department,
+    interests,
+    networking_goals,
+    major,
+    hometown,
+    grad_year,
   } = req.body;
 
   if (industry_category && !INDUSTRY_CATEGORIES.includes(industry_category)) {
     return res.status(400).json({ error: "Invalid industry category." });
+  }
+  const cleanInterests = cleanList(interests, INDUSTRY_CATEGORIES);
+  const cleanGoals = cleanList(networking_goals, NETWORKING_GOALS);
+  const cleanGradYear = cleanText(grad_year, 4);
+  if (cleanGradYear && !/^\d{4}$/.test(cleanGradYear)) {
+    return res.status(400).json({ error: "Please enter a 4-digit graduation year." });
   }
 
   try {
@@ -726,8 +771,13 @@ router.put("/alumni/:id", async (req, res) => {
         baen_updates = COALESCE($19, baen_updates),
         baen_fundraising = COALESCE($20, baen_fundraising),
         visit_department = COALESCE($21, visit_department),
+        interests = COALESCE($22, interests),
+        networking_goals = COALESCE($23, networking_goals),
+        major = COALESCE($24, major),
+        hometown = COALESCE($25, hometown),
+        grad_year = COALESCE($26, grad_year),
         last_modified = NOW()
-       WHERE id = $22
+       WHERE id = $27
        RETURNING id, last_modified`,
       [
         classification,
@@ -751,6 +801,11 @@ router.put("/alumni/:id", async (req, res) => {
         baen_updates,
         baen_fundraising,
         visit_department,
+        cleanInterests,
+        cleanGoals,
+        cleanText(major, 120),
+        cleanText(hometown, 120),
+        cleanGradYear,
         id,
       ],
     );
@@ -812,7 +867,6 @@ router.delete("/alumni/:id/degrees/:degreeId", async (req, res) => {
 
 // ---------- BAEN Connect Portal ----------
 // Alumni who opted in ("reconnect_baen") and verified their email receive proposals.
-const PROPOSAL_MAX_WORDS = 300;
 const PROPOSALS_PER_DAY = 1;
 
 // Special "location of interest" choices. These must match ANY_LOCATION in
@@ -862,50 +916,81 @@ router.get("/portal/recipient-count", async (req, res) => {
   }
 });
 
-router.post("/portal/proposals", async (req, res) => {
-  const { alumniId, interests, state, body } = req.body;
-
-  // ---- Validate input ----
-  if (!alumniId) {
-    return res.status(400).json({ error: "Please log in again." });
-  }
+// Checks the portal selections; returns { error } or the cleaned values
+function readPortalSelections(body) {
+  const { alumniId, interests, state, goals } = body;
+  if (!alumniId) return { error: "Please log in again." };
   if (
     !Array.isArray(interests) ||
     interests.length === 0 ||
     !interests.every((i) => INDUSTRY_CATEGORIES.includes(i))
   ) {
-    return res
-      .status(400)
-      .json({ error: "Please choose at least one area of interest." });
+    return { error: "Please choose at least one area of interest." };
   }
-  const cleanState = typeof state === "string" ? state.trim() : "";
-  if (!cleanState || cleanState.length > 60) {
-    return res
-      .status(400)
-      .json({ error: "Please choose a location of interest." });
+  const location = typeof state === "string" ? state.trim() : "";
+  if (!location || location.length > 60) {
+    return { error: "Please choose a location of interest." };
   }
-  const cleanBody = typeof body === "string" ? body.trim() : "";
-  const wordCount = cleanBody ? cleanBody.split(/\s+/).length : 0;
-  if (wordCount < 10) {
-    return res
-      .status(400)
-      .json({ error: "Please write a proposal of at least 10 words." });
+  if (
+    !Array.isArray(goals) ||
+    goals.length === 0 ||
+    !goals.every((g) => NETWORKING_GOALS.includes(g))
+  ) {
+    return { error: "Please choose what you're looking to gain from this network." };
   }
-  if (wordCount > PROPOSAL_MAX_WORDS || cleanBody.length > 4000) {
-    return res.status(400).json({
-      error: `Please keep your proposal under ${PROPOSAL_MAX_WORDS} words.`,
-    });
+  return { alumniId, interests: [...new Set(interests)], goals: [...new Set(goals)], location };
+}
+
+// Profile details the message templates use (plus the person's first degree)
+async function loadSender(alumniId) {
+  const result = await db.query(
+    `SELECT a.id, a.first_name, a.last_name, a.email, a.email_verified, a.classification,
+            a.major, a.company, a.job_title, a.industry_category,
+            (SELECT d.degree_name FROM alumni_degrees d
+             WHERE d.alumni_id = a.id AND d.degree_name <> 'Other'
+             ORDER BY d.year_conferred LIMIT 1) AS first_degree
+     FROM alumni a WHERE a.id = $1`,
+    [alumniId],
+  );
+  return result.rows[0] || null;
+}
+
+// The messages a person can choose from, built from their profile + selections
+router.post("/portal/message-options", async (req, res) => {
+  const picked = readPortalSelections(req.body);
+  if (picked.error) return res.status(400).json({ error: picked.error });
+  try {
+    const sender = await loadSender(picked.alumniId);
+    if (!sender) return res.status(404).json({ error: "Account not found." });
+    res.json({ options: buildMessageOptions(sender, picked) });
+  } catch (err) {
+    console.error("Message options error:", err);
+    res.status(500).json({ error: "Internal Server Error" });
   }
+});
+
+router.post("/portal/proposals", async (req, res) => {
+  // ---- Validate input ----
+  const picked = readPortalSelections(req.body);
+  if (picked.error) return res.status(400).json({ error: picked.error });
+  const { interests } = picked;
+  const cleanState = picked.location;
 
   try {
-    const senderResult = await db.query(
-      `SELECT id, first_name, last_name, email, email_verified FROM alumni WHERE id = $1`,
-      [alumniId],
-    );
-    if (senderResult.rows.length === 0) {
+    const sender = await loadSender(picked.alumniId);
+    if (!sender) {
       return res.status(404).json({ error: "Account not found." });
     }
-    const sender = senderResult.rows[0];
+
+    // People can only send one of the pre-written messages. The server
+    // rebuilds it here, so the text can't be changed in the browser.
+    const chosen = buildMessageOptions(sender, picked).find(
+      (o) => o.id === req.body.messageId,
+    );
+    if (!chosen) {
+      return res.status(400).json({ error: "Please choose one of the suggested messages." });
+    }
+    const cleanBody = chosen.text;
     if (!sender.email_verified) {
       return res
         .status(403)
@@ -1059,7 +1144,7 @@ router.post("/connections/:connectionId/accept", async (req, res) => {
         studentName: `${row.s_first} ${row.s_last}`.trim(),
         alumniEmail: row.a_email,
         alumniName: `${row.a_first} ${row.a_last}`.trim(),
-        alumniRole: row.a_class === "Friend of BAEN" ? "a Friend of BAEN" : "a BAEN alum",
+        alumniRole: roleLabel(row.a_class),
         body: row.body,
       });
     } catch (err) {

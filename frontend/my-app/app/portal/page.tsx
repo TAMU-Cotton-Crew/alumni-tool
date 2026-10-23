@@ -5,17 +5,21 @@ import { useRouter } from "next/navigation";
 import { State } from "country-state-city";
 import { fetchJson, isRateLimited } from "@/lib/api";
 import { INDUSTRY_CATEGORIES } from "@/lib/industries";
+import { NETWORKING_GOALS } from "@/lib/networking";
+import MultiSelectChecklist from "@/components/MultiSelectChecklist";
 
 const US_STATES = State.getStatesOfCountry("US").map((s) => s.name);
-// Must match LOCATION_ANYWHERE / LOCATION_OUTSIDE_US in backend/index.js
+// Must match LOCATION_ANYWHERE / LOCATION_OUTSIDE_US in backend/index.js and backend/messages.js
 const ANY_LOCATION = ["Open to any location", "Open to locations outside the US"];
-const MAX_WORDS = 300;
-const MIN_WORDS = 10;
 
-const countWords = (text: string) =>
-  text.trim() === "" ? 0 : text.trim().split(/\s+/).length;
+interface MessageOption {
+  id: string;
+  label: string;
+  text: string;
+}
 
-// BAEN Connect Portal: send a short proposal to alumni who opted in to connect
+// BAEN Connect Portal: pick interests, location and goals, then choose one of
+// the pre-written connection messages to send to alumni and friends who opted in
 export default function PortalPage() {
   const router = useRouter();
   const [alumniId, setAlumniId] = useState<string | null>(null);
@@ -26,7 +30,12 @@ export default function PortalPage() {
 
   const [interests, setInterests] = useState<string[]>([]);
   const [location, setLocation] = useState("");
-  const [proposal, setProposal] = useState("");
+  const [goals, setGoals] = useState<string[]>([]);
+
+  // Pre-written messages built by the server from the profile + selections
+  const [options, setOptions] = useState<MessageOption[]>([]);
+  const [messageId, setMessageId] = useState<string | null>(null);
+  const [loadingOptions, setLoadingOptions] = useState(false);
 
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -50,7 +59,52 @@ export default function PortalPage() {
     )
       .then((d) => setRecipientCount(d.count))
       .catch(() => setRecipientCount(null));
+
+    // Start from the interests and goals saved on their profile
+    fetchJson<{ interests: string[] | null; networking_goals: string[] | null }>(
+      `/api/alumni/${id}`,
+      { cache: "no-store" },
+    )
+      .then((p) => {
+        setInterests((cur) => (cur.length ? cur : (p.interests ?? []).filter((i) => INDUSTRY_CATEGORIES.includes(i))));
+        setGoals((cur) => (cur.length ? cur : (p.networking_goals ?? []).filter((g) => NETWORKING_GOALS.includes(g))));
+      })
+      .catch(() => {});
   }, [router]);
+
+  // Rebuild the suggested messages whenever the selections change
+  const ready = interests.length > 0 && location !== "" && goals.length > 0;
+  useEffect(() => {
+    if (!alumniId || !ready) {
+      setOptions([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingOptions(true);
+    const timer = setTimeout(() => {
+      fetchJson<{ options: MessageOption[] }>("/api/portal/message-options", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ alumniId, interests, state: location, goals }),
+      })
+        .then((d) => {
+          if (cancelled) return;
+          setOptions(d.options);
+          // Keep their pick if that style still exists
+          setMessageId((cur) => (d.options.some((o) => o.id === cur) ? cur : null));
+        })
+        .catch(() => {
+          if (!cancelled) setOptions([]);
+        })
+        .finally(() => {
+          if (!cancelled) setLoadingOptions(false);
+        });
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [alumniId, ready, interests, location, goals]);
 
   // Re-count possible connections whenever the location changes
   useEffect(() => {
@@ -80,13 +134,6 @@ export default function PortalPage() {
     };
   }, [alumniId, location]);
 
-  const toggleInterest = (cat: string) => {
-    setInterests((prev) =>
-      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat],
-    );
-  };
-
-  const words = countWords(proposal);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -105,8 +152,12 @@ export default function PortalPage() {
       setError("There are no alumni to connect with in that location yet.");
       return;
     }
-    if (words < MIN_WORDS) {
-      setError(`Please write a proposal of at least ${MIN_WORDS} words.`);
+    if (goals.length === 0) {
+      setError("Please choose what you're looking to gain from this network.");
+      return;
+    }
+    if (!messageId) {
+      setError("Please choose one of the suggested messages.");
       return;
     }
 
@@ -123,7 +174,8 @@ export default function PortalPage() {
           alumniId,
           interests,
           state: location,
-          body: proposal,
+          goals,
+          messageId,
         }),
       });
       setResult(data);
@@ -205,10 +257,11 @@ export default function PortalPage() {
         <h1 className="text-3xl font-bold text-maroon-700">
           BAEN Connect Portal
         </h1>
+
         <p className="text-lg text-gray-700 mt-2 mb-8">
-          Share what you&apos;re looking for, and we&apos;ll email your
-          proposal to BAEN alumni in your location of interest who have
-          offered to connect with students.
+          Tell us what you&apos;re looking for, choose a message, and
+          we&apos;ll send your connection request to BAEN alumni and friends
+          in your location of interest who have offered to connect.
           {recipientCount !== null && (
             <>
               {" "}
@@ -227,22 +280,13 @@ export default function PortalPage() {
               Areas of Interest
             </h2>
             <p className="text-gray-600 mb-4">Select all that apply.</p>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {INDUSTRY_CATEGORIES.map((cat) => (
-                <label
-                  key={cat}
-                  className="flex items-center gap-3 text-lg text-gray-800"
-                >
-                  <input
-                    type="checkbox"
-                    checked={interests.includes(cat)}
-                    onChange={() => toggleInterest(cat)}
-                    className="w-5 h-5"
-                  />
-                  {cat}
-                </label>
-              ))}
-            </div>
+            <MultiSelectChecklist
+              options={INDUSTRY_CATEGORIES}
+              selected={interests}
+              onChange={setInterests}
+              searchable
+              columns={2}
+            />
           </section>
 
           {/* Location */}
@@ -274,7 +318,7 @@ export default function PortalPage() {
               className="w-full text-lg text-gray-900 bg-white border-2 border-gray-400 rounded-md p-3"
             >
               <option value="">-- Select a State/Location --</option>
-              {ANY_LOCATION.map((loc) => ( ///Changed the order, double check to make sure that this compiles.
+              {ANY_LOCATION.map((loc) => (
                   <option key={loc} value={loc}>{loc}</option>
               ))}
               {US_STATES.map((name) => (
@@ -285,29 +329,66 @@ export default function PortalPage() {
             </select>
           </section>
 
-          {/* Proposal */}
+          {/* Networking goals */}
           <section className="rounded-xl shadow-md border border-gray-200 p-6">
             <h2 className="text-2xl font-bold text-gray-900 mb-1">
-              Your Proposal
+              What are you looking to gain from this network?
+            </h2>
+            <p className="text-gray-600 mb-4">Select all that apply.</p>
+            <MultiSelectChecklist
+              options={NETWORKING_GOALS}
+              selected={goals}
+              onChange={setGoals}
+              columns={2}
+            />
+          </section>
+
+          {/* Choose a message */}
+          <section className="rounded-xl shadow-md border border-gray-200 p-6">
+            <h2 className="text-2xl font-bold text-gray-900 mb-1">
+              Choose your connection message
             </h2>
             <p className="text-gray-600 mb-4">
-              Introduce yourself and explain what you&apos;re hoping to find
-              (for example an internship, a mentor, or a project).
+              We write these from your profile and the choices above. Pick the
+              one that fits you best. Alumni won&apos;t see your name until they
+              choose to connect.
             </p>
-            <textarea
-              value={proposal}
-              onChange={(e) => {
-                if (countWords(e.target.value) <= MAX_WORDS) {
-                  setProposal(e.target.value);
-                }
-              }}
-              rows={8}
-              className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
-              placeholder="Hi! I'm a junior in BAEN interested in..."
-            />
-            <p className="text-sm text-gray-600 mt-2">
-              {words} / {MAX_WORDS} words
-            </p>
+
+            {!ready && (
+              <p className="text-gray-700 italic">
+                Choose your areas of interest, a location, and what you&apos;re
+                looking for to see suggested messages.
+              </p>
+            )}
+            {ready && loadingOptions && options.length === 0 && (
+              <p className="text-gray-700">Writing suggestions...</p>
+            )}
+
+            <div className="flex flex-col gap-3" role="radiogroup">
+              {options.map((o) => (
+                <label
+                  key={o.id}
+                  className={`block cursor-pointer rounded-lg border-2 p-4 transition ${
+                    messageId === o.id
+                      ? "border-maroon-700 bg-maroon-50"
+                      : "border-gray-200 hover:border-gray-400"
+                  }`}
+                >
+                  <span className="flex items-center gap-3">
+                    <input
+                      type="radio"
+                      name="message"
+                      value={o.id}
+                      checked={messageId === o.id}
+                      onChange={() => setMessageId(o.id)}
+                      className="w-5 h-5"
+                    />
+                    <span className="text-lg font-semibold text-gray-900">{o.label}</span>
+                  </span>
+                  <span className="block text-gray-800 mt-2 ml-8">{o.text}</span>
+                </label>
+              ))}
+            </div>
           </section>
 
           {limitNotice && (
@@ -326,7 +407,7 @@ export default function PortalPage() {
           <div>
             <button
               type="submit"
-              disabled={sending || recipientCount === 0 || locationCount === 0}
+              disabled={sending || recipientCount === 0 || locationCount === 0 || !messageId}
               className="w-full sm:w-auto text-xl font-semibold bg-maroon-700 text-white rounded-md px-8 py-3 hover:bg-maroon-800 disabled:opacity-60"
             >
               {sending ? "Sending..." : "Send Proposal"}

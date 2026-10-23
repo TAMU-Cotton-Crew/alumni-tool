@@ -23,10 +23,8 @@ export default function HomeMenu() {
     setIsAdmin(localStorage.getItem("isAdmin") === "true");
     setReady(true);
 
-    // Alumni get the connection-requests card (with a count of new requests)
-    fetchJson<{ classification: string }>(`/api/alumni/${id}`, {
-      cache: "no-store",
-    })
+    // Alumni and friends receive connection requests: show their card with a count
+    fetchJson<{ classification: string }>(`/api/alumni/${id}`, { cache: "no-store" })
       .then(async (p) => {
         if (!["Alumni", "Friend of BAEN"].includes(p.classification)) return;
         setIsAlumni(true);
@@ -74,25 +72,25 @@ export default function HomeMenu() {
               BAEN Connect Portal
             </p>
             <p className="text-gray-600 mt-1">
-              Connect with the BAEN community.
+              Tell us what you&apos;re looking for and send a connection
+              request to BAEN alumni and friends.
             </p>
           </a>
 
           {isAlumni && (
-            <a href="/connections" className={cardClass}>
-              <p className="text-xl font-semibold text-gray-900">
-                BAEN Connections Proposals
-                {pendingCount > 0 && (
-                  <span className="ml-2 inline-block rounded-full bg-maroon-700 px-2.5 py-0.5 text-sm font-semibold text-white align-middle">
-                    {pendingCount} new
-                  </span>
-                )}
-              </p>
-              <p className="text-gray-600 mt-1">
-                Review requests from BAEN students and choose who to connect
-                with.
-              </p>
-            </a>
+          <a href="/connections" className={cardClass}>
+            <p className="text-xl font-semibold text-gray-900">
+              BAEN Connections Proposals
+              {pendingCount > 0 && (
+                <span className="ml-2 inline-block rounded-full bg-maroon-700 px-2.5 py-0.5 text-sm font-semibold text-white align-middle">
+                  {pendingCount} new
+                </span>
+              )}
+            </p>
+            <p className="text-gray-600 mt-1">
+              Review connection requests and choose who to connect with.
+            </p>
+          </a>
           )}
 
           {isAdmin && (

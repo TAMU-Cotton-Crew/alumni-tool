@@ -8,13 +8,16 @@ interface Request {
   id: number;
   body: string;
   interests: string[];
-  state: string;
+  state: string | null;
   created_at: string;
   status: "pending" | "accepted" | "declined";
 }
 
-// BAEN Connections Proposals: alumni review anonymous student requests and
-// choose to connect (which emails both of them an introduction).
+const formatDate = (iso: string) =>
+  new Date(iso).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" });
+
+// BAEN Connections Proposals: alumni and friends review anonymous requests
+// and choose to connect (which emails both people an introduction).
 export default function ConnectionsPage() {
   const router = useRouter();
   const [alumniId, setAlumniId] = useState<string | null>(null);
@@ -106,12 +109,8 @@ export default function ConnectionsPage() {
       >
         <div className="flex flex-wrap items-center justify-between gap-2 mb-3">
           <p className="text-sm text-gray-600">
-            {new Date(r.created_at).toLocaleDateString(undefined, {
-              month: "long",
-              day: "numeric",
-              year: "numeric",
-            })}{" "}
-            · {r.state}
+            {formatDate(r.created_at)}
+            {r.state && ` · ${r.state}`}
           </p>
           {r.status === "accepted" && (
             <span className="rounded-full bg-green-100 px-3 py-1 text-sm font-semibold text-green-800">
@@ -130,7 +129,7 @@ export default function ConnectionsPage() {
         </p>
 
         <div className="flex flex-wrap gap-2 mt-4">
-          {r.interests.map((i) => (
+          {(r.interests ?? []).map((i) => (
             <span
               key={i}
               className="rounded-full bg-maroon-50 px-3 py-1 text-sm text-maroon-800"
@@ -189,9 +188,9 @@ export default function ConnectionsPage() {
           BAEN Connections Proposals
         </h1>
         <p className="text-lg text-gray-700 mt-2 mb-8">
-          BAEN students who&apos;d like to connect with alumni in your area.
-          Their names stay private until you choose <strong>Connect</strong>;
-          then we&apos;ll introduce you both by email.
+          BAEN members who&apos;d like to connect with alumni and friends in
+          your area. Their names stay private until you choose{" "}
+          <strong>Connect</strong>; then we&apos;ll introduce you both by email.
         </p>
 
         {loadError && (
@@ -205,7 +204,7 @@ export default function ConnectionsPage() {
           <div className="flex flex-col gap-6">
             {pending.length === 0 && (
               <p className="text-lg text-gray-700">
-                No new requests right now. We&apos;ll email you when a student
+                No new requests right now. We&apos;ll email you when someone
                 reaches out.
               </p>
             )}

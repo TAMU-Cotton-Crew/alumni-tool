@@ -18,7 +18,7 @@ interface MessageOption {
   text: string;
 }
 
-// BAEN Connect Portal: pick interests, location and goals, then choose one of
+// BAEN Community Portal: pick interests, location and goals, then choose one of
 // the pre-written connection messages to send to alumni and friends who opted in
 export default function PortalPage() {
   const router = useRouter();
@@ -200,7 +200,7 @@ export default function PortalPage() {
       <main className="flex-1 flex items-center justify-center bg-white px-4 py-10">
         <div className="w-full max-w-xl text-center">
           <h1 className="text-3xl font-bold text-maroon-700 mb-4">
-            BAEN Connect Portal
+            BAEN Community Portal
           </h1>
           <div
             role="status"
@@ -255,7 +255,7 @@ export default function PortalPage() {
           ← Back to menu
         </a>
         <h1 className="text-3xl font-bold text-maroon-700">
-          BAEN Connect Portal
+          BAEN Community Portal
         </h1>
 
         <p className="text-lg text-gray-700 mt-2 mb-8">

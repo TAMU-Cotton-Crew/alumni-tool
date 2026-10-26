@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { fetchJson } from "@/lib/api";
 import { TAMU_DEGREES, DEGREE_TYPES } from "@/lib/degrees";
 import { INDUSTRY_CATEGORIES } from "@/lib/industries";
 import { NETWORKING_GOALS } from "@/lib/networking";
 import MultiSelectChecklist from "@/components/MultiSelectChecklist";
+import { Hometown, parseHometown, serializeHometown } from "@/lib/hometown";
 import { Country, State, City } from "country-state-city";
 
 /* Look to expand Industry List, There also exists a column for work_state and I've added one for work_zipcode */
@@ -20,6 +21,31 @@ const countries = [...Country.getAllCountries()].sort((a, b) => {
 });
 
 const usStates = State.getStatesOfCountry("US");
+
+// US cities without the county/parish/borough entries the library mixes in
+const citiesOfState = (stateName: string) => {
+  const st = usStates.find((s) => s.name === stateName);
+  return st
+    ? City.getCitiesOfState("US", st.isoCode).filter(
+        (c) => !/ (County|Parish|Borough|Census Area)$/.test(c.name),
+      )
+    : [];
+};
+
+// Majors are saved with their degree type, e.g. "Biological and Agricultural Engineering (B.S.)"
+const MAJOR_OPTIONS = TAMU_DEGREES.filter((d) => d !== "Other");
+
+// Older majors were saved without a type: match them to the first listed degree with that name
+function normalizeMajor(major: string): string {
+  if (!major || MAJOR_OPTIONS.includes(major) || /\([^)]+\)\s*$/.test(major)) return major;
+  return MAJOR_OPTIONS.find((d) => d.startsWith(`${major} (`)) ?? major;
+}
+
+// "Soil Science (M.S.)" -> { name: "Soil Science", type: "M.S." }
+function splitMajor(major: string): { name: string; type: string } {
+  const m = major.match(/^(.*?)\s*\(([^)]+)\)\s*$/);
+  return m ? { name: m[1], type: m[2] } : { name: major, type: "B.S." };
+}
 
 interface Degree {
   id: number;
@@ -117,6 +143,7 @@ export default function ProfilePage() {
   });
   const [addingDegree, setAddingDegree] = useState(false);
   const [otherDegree, setOtherDegree] = useState({ name: "", type: "B.S." });
+  const [majorOtherMode, setMajorOtherMode] = useState(false);
 
   // ---- Login emails (main email is read-only; backup can also be used to log in) ----
   const [mainEmail, setMainEmail] = useState("");
@@ -169,7 +196,7 @@ export default function ProfilePage() {
           bio: blankIfNull(data.bio),
           interests: data.interests ?? [],
           networking_goals: data.networking_goals ?? [],
-          major: blankIfNull(data.major),
+          major: normalizeMajor(blankIfNull(data.major)),
           hometown: blankIfNull(data.hometown),
           grad_year: blankIfNull(data.grad_year),
         });
@@ -327,6 +354,10 @@ export default function ProfilePage() {
     router.push("/");
   };
 
+  // City list for the hometown state (hooks must run before the early return below)
+  const hometownState = parseHometown(form.hometown).state;
+  const hometownCities = useMemo(() => citiesOfState(hometownState), [hometownState]);
+
   if (loading) {
     return (
       <main className="flex-1 flex items-center justify-center bg-white">
@@ -337,6 +368,18 @@ export default function ProfilePage() {
 
   const isAlumni = ["Alumni", "Friend of BAEN"].includes(form.classification);
   const isStudent = form.classification === "Student";
+
+  // ---- Major: pick from the TAMU list (with degree type) or enter "Other" ----
+  const majorInList = MAJOR_OPTIONS.includes(form.major);
+  const showOtherMajor = majorOtherMode || (form.major !== "" && !majorInList);
+  const otherMajor = splitMajor(majorInList ? "" : form.major);
+  const setOtherMajor = (name: string, type: string) =>
+    handleChange("major", name.trim() ? `${name} (${type})` : "");
+
+  // ---- Hometown: country first; US adds state, city and ZIP ----
+  const home = parseHometown(form.hometown);
+  const setHome = (patch: Partial<Hometown>) =>
+    handleChange("hometown", serializeHometown({ ...home, ...patch }));
 
   return (
     <main className="flex-1 bg-white px-4 py-10">
@@ -374,7 +417,7 @@ export default function ProfilePage() {
           >
             <option value="Student">Student</option>
             <option value="Alumni">Alumni</option>
-            <option value="Friend of BAEN">Friend of BAEN</option> {/* Treated like Alumni for the opportunities section and BAEN Connect */}
+            <option value="Friend of BAEN">Friend of BAEN</option> {/* Treated like Alumni for the opportunities section and the BAEN Community Portal */}
           </select>
         </div>
 
@@ -604,20 +647,51 @@ export default function ProfilePage() {
               <label className="block text-lg font-medium text-gray-800 mb-1">
                 Major
               </label>
-              <input
-                type="text"
-                list="major-options"
-                value={form.major}
-                onChange={(e) => handleChange("major", e.target.value)}
-                maxLength={120}
-                className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
-                placeholder="e.g. Biological and Agricultural Engineering"
-              />
-              <datalist id="major-options">
-                {TAMU_DEGREES.filter((d) => d !== "Other").map((d) => (
-                  <option key={d} value={d.replace(/\s*\([^)]*\)$/, "")} />
+              <select
+                value={majorInList ? form.major : showOtherMajor ? "Other" : ""}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === "Other") {
+                    setMajorOtherMode(true);
+                    handleChange("major", "");
+                  } else {
+                    setMajorOtherMode(false);
+                    handleChange("major", v);
+                  }
+                }}
+                className="w-full text-lg text-gray-900 bg-white border-2 border-gray-400 rounded-md p-3"
+              >
+                <option value="">-- Select your major --</option>
+                {MAJOR_OPTIONS.map((d) => (
+                  <option key={d} value={d}>
+                    {d}
+                  </option>
                 ))}
-              </datalist>
+                <option value="Other">Other</option>
+              </select>
+              {showOtherMajor && (
+                <div className="grid grid-cols-3 gap-4 mt-3">
+                  <input
+                    type="text"
+                    value={otherMajor.name}
+                    onChange={(e) => setOtherMajor(e.target.value, otherMajor.type)}
+                    maxLength={100}
+                    className="col-span-2 w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
+                    placeholder="Major name"
+                  />
+                  <select
+                    value={otherMajor.type}
+                    onChange={(e) => setOtherMajor(otherMajor.name, e.target.value)}
+                    className="w-full text-lg text-gray-900 bg-white border-2 border-gray-400 rounded-md p-3"
+                  >
+                    {DEGREE_TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -635,20 +709,78 @@ export default function ProfilePage() {
                   placeholder="e.g. 2027"
                 />
               </div>
-              <div>
-                <label className="block text-lg font-medium text-gray-800 mb-1">
-                  Hometown
-                </label>
-                <input
-                  type="text"
-                  value={form.hometown}
-                  onChange={(e) => handleChange("hometown", e.target.value)}
-                  maxLength={120}
-                  className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
-                  placeholder="e.g. Bryan, TX"
-                />
-              </div>
             </div>
+
+            <div>
+              <label className="block text-lg font-medium text-gray-800 mb-1">
+                Country of Origin
+              </label>
+              <select
+                value={home.country}
+                onChange={(e) => setHome({ country: e.target.value, state: "", city: "", zip: "" })}
+                className="w-full text-lg text-gray-900 bg-white border-2 border-gray-400 rounded-md p-3"
+              >
+                <option value="">Select Country</option>
+                {countries.map((c) => (
+                  <option key={c.isoCode} value={c.name}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {home.country === "United States" && (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-lg font-medium text-gray-800 mb-1">
+                    Home State
+                  </label>
+                  <select
+                    value={home.state}
+                    onChange={(e) => setHome({ state: e.target.value, city: "" })}
+                    className="w-full text-lg text-gray-900 bg-white border-2 border-gray-400 rounded-md p-3"
+                  >
+                    <option value="">Select State</option>
+                    {usStates.map((st) => (
+                      <option key={st.isoCode} value={st.name}>
+                        {st.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-lg font-medium text-gray-800 mb-1">
+                    Home City
+                  </label>
+                  <select
+                    value={home.city}
+                    onChange={(e) => setHome({ city: e.target.value })}
+                    disabled={!home.state}
+                    className="w-full text-lg text-gray-900 bg-white border-2 border-gray-400 rounded-md p-3 disabled:bg-gray-100"
+                  >
+                    <option value="">Select City</option>
+                    {hometownCities.map((c) => (
+                      <option key={c.name} value={c.name}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-lg font-medium text-gray-800 mb-1">
+                    Home ZIP Code
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={home.zip}
+                    onChange={(e) => setHome({ zip: e.target.value.replace(/[^\d-]/g, "").slice(0, 10) })}
+                    className="w-full text-lg text-gray-900 placeholder:text-gray-500 bg-white border-2 border-gray-400 rounded-md p-3"
+                    placeholder="e.g. 77801"
+                  />
+                </div>
+              </div>
+            )}
           </div>
 
           <button
@@ -877,7 +1009,7 @@ export default function ProfilePage() {
         </div>
       </section>
 
-      {/* BAEN Connect: interests and networking goals */}
+      {/* BAEN Community Portal: interests and networking goals */}
       <section className="bg-white rounded-xl shadow-md border border-gray-200 p-6 mb-8">
         <h2 className="text-2xl font-bold text-gray-900 mb-1">
           Areas of Interest

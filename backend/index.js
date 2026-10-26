@@ -804,7 +804,7 @@ router.put("/alumni/:id", async (req, res) => {
         cleanInterests,
         cleanGoals,
         cleanText(major, 120),
-        cleanText(hometown, 120),
+        cleanText(hometown, 300), // JSON: {"country","state","city","zip"}
         cleanGradYear,
         id,
       ],
@@ -865,7 +865,7 @@ router.delete("/alumni/:id/degrees/:degreeId", async (req, res) => {
   }
 });
 
-// ---------- BAEN Connect Portal ----------
+// ---------- BAEN Community Portal ----------
 // Alumni who opted in ("reconnect_baen") and verified their email receive proposals.
 const PROPOSALS_PER_DAY = 1;
 

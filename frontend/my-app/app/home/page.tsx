@@ -69,7 +69,7 @@ export default function HomeMenu() {
 
           <a href="/portal" className={cardClass}>
             <p className="text-xl font-semibold text-gray-900">
-              BAEN Connect Portal
+              BAEN Community Portal
             </p>
             <p className="text-gray-600 mt-1">
               Tell us what you&apos;re looking for and send a connection

@@ -14,7 +14,7 @@ export const TAMU_DEGREES = [
   "Agricultural Economics (B.S.)",
   "Agricultural Education (B.S.)",
   "Agricultural Leadership and Development (B.S.)",
-
+  // Currently Storing title without prefix.
   // Agriculture & Life Sciences
   "Agribusiness (B.S.)",
   "Animal Science (B.S.)",

@@ -94,7 +94,7 @@ function escapeHtml(text) {
 async function sendProposalEmails({ body, link, recipients }) {
   const BATCH_SIZE = 50;
   const html = `
-    <p>A BAEN student would like to connect with you through the BAEN Connect Portal.</p>
+    <p>A BAEN student would like to connect with you through the BAEN Community Portal.</p>
     <p><strong>About them:</strong></p>
     <div style="border-left: 4px solid #500000; padding: 8px 12px; margin: 12px 0;">
       ${escapeHtml(body).replace(/\r?\n/g, "<br/>")}
@@ -110,7 +110,7 @@ async function sendProposalEmails({ body, link, recipients }) {
     try {
       const poller = await client.beginSend({
         senderAddress: FROM_ADDRESS,
-        content: { subject: "BAEN Connect: a student would like to connect", html },
+        content: { subject: "BAEN Community: a student would like to connect", html },
         recipients: {
           to: [{ address: FROM_ADDRESS }],
           bcc: batch.map((address) => ({ address })),
@@ -147,11 +147,11 @@ async function sendConnectionIntroEmail({
     const poller = await client.beginSend({
       senderAddress: FROM_ADDRESS,
       content: {
-        subject: `BAEN Connect: ${studentName}, meet ${alumniName}`,
+        subject: `BAEN Community: ${studentName}, meet ${alumniName}`,
         html: `
           <p>Hi ${escapeHtml(studentName)} and ${escapeHtml(alumniName)},</p>
           <p>Great news: <strong>${escapeHtml(alumniName)}</strong> (${escapeHtml(alumniEmail)}), ${escapeHtml(alumniRole)}, accepted
-             <strong>${escapeHtml(studentName)}</strong>'s (${escapeHtml(studentEmail)}) connection request through the BAEN Connect Portal.</p>
+             <strong>${escapeHtml(studentName)}</strong>'s (${escapeHtml(studentEmail)}) connection request through the BAEN Community Portal.</p>
           <p><strong>${escapeHtml(studentName)}'s request:</strong></p>
           <div style="border-left: 4px solid #500000; padding: 8px 12px; margin: 12px 0;">
             ${escapeHtml(body).replace(/\r?\n/g, "<br/>")}

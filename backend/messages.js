@@ -1,5 +1,5 @@
 // Builds the pre-written connection messages people choose from on the
-// BAEN Connect Portal. Users can't type their own text: the server builds the
+// BAEN Community Portal. Users can't type their own text: the server builds the
 // message from their profile and their selections, so every request stays
 // respectful and on-topic.
 //
@@ -54,7 +54,8 @@ const clean = (v) => (typeof v === "string" ? v.trim() : "");
 // Returns [{ id, label, text }]
 function buildMessageOptions(sender, { interests, goals, location }) {
   const status = sender.classification;
-  const major = clean(sender.major) || (sender.first_degree ? stripDegreeType(sender.first_degree) : "");
+  // Majors are saved with their type ("... (B.S.)"); messages read better without it
+  const major = stripDegreeType(clean(sender.major)) || (sender.first_degree ? stripDegreeType(sender.first_degree) : "");
   const industry = clean(sender.industry_category);
   const company = clean(sender.company);
   const work = industry && company ? `${industry} at ${company}` : company || industry;

@@ -1,4 +1,4 @@
-// Industry categories shared by the profile page and the BAEN Connect Portal.
+// Industry categories shared by the profile page and the BAEN Community Portal.
 // Keep this in sync with INDUSTRY_CATEGORIES in backend/index.js (the backend checks values against it).
 
 export const INDUSTRY_CATEGORIES = [

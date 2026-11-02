@@ -1,11 +1,12 @@
 // Industry categories shared by the profile page and the BAEN Community Portal.
 // Keep this in sync with INDUSTRY_CATEGORIES in backend/index.js (the backend checks values against it).
 
-export const INDUSTRY_CATEGORIES = [
+export const INDUSTRY_CATEGORIES = ["Agriculture",
   "Air Quality",
   "Bioenergy",
   "Construction",
   "Consulting",
+  "Cotton Ginning",
   "Data Analytics",
   "Educator",
   "Electrician",

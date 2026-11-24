@@ -832,13 +832,18 @@ router.post("/alumni/:id/degrees", async (req, res) => {
       .status(400)
       .json({ error: "Degree level, name, and year are required." });
   }
+  if (!/^\d{4}$/.test(String(year_conferred).trim())) {
+    return res
+      .status(400)
+      .json({ error: "Please enter the year conferred as a 4-digit year, e.g. 2005." });
+  }
 
   try {
     const result = await db.query(
       `INSERT INTO alumni_degrees (alumni_id, degree_level, degree_name, year_conferred)
        VALUES ($1, $2, $3, $4)
        RETURNING id, degree_level, degree_name, year_conferred`,
-      [id, degree_level, degree_name, year_conferred],
+      [id, degree_level, degree_name, String(year_conferred).trim()],
     );
     await db.query(`UPDATE alumni SET last_modified = NOW() WHERE id = $1`, [id]);
     res.status(201).json(result.rows[0]);
